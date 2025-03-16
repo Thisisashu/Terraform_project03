@@ -20,7 +20,8 @@ resource "azurerm_subnet" "app_network_subnets" {
 
 resource "azurerm_network_interface" "webinterfaces" {
   #count=var.network_interface_count
-  name                = var.app_environment.production.networkinterfacename
+  for_each = var.app_environment.production.subnets["websubnet01"].machines
+  name                = each.value.networkinterfacename
   location            = local.resource_location
   resource_group_name = azurerm_resource_group.appgrp.name
 
@@ -28,12 +29,37 @@ resource "azurerm_network_interface" "webinterfaces" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.app_network_subnets["websubnet01"].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id = azurerm_public_ip.webip.id
+    public_ip_address_id = azurerm_public_ip.webip[each.key].id
+  }
+}
+
+resource "azurerm_network_interface" "appinterfaces" {
+  #count=var.network_interface_count
+  for_each = var.app_environment.production.subnets["appsubnet01"].machines
+  name                = each.value.networkinterfacename
+  location            = local.resource_location
+  resource_group_name = azurerm_resource_group.appgrp.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.app_network_subnets["appsubnet01"].id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id = azurerm_public_ip.appip[each.key].id
   }
 }
 resource "azurerm_public_ip" "webip" {
  # count = var.network_interface_count
-  name = var.app_environment.production.publicipaddressname
+ for_each = var.app_environment.production.subnets["websubnet01"].machines
+  name = each.value.publicipaddressname
+  resource_group_name =azurerm_resource_group.appgrp.name
+  location = local.resource_location
+  allocation_method ="Static"
+}
+
+resource "azurerm_public_ip" "appip" {
+ # count = var.network_interface_count
+ for_each = var.app_environment.production.subnets["appsubnet01"].machines
+  name = each.value.publicipaddressname
   resource_group_name =azurerm_resource_group.appgrp.name
   location = local.resource_location
   allocation_method ="Static"
@@ -72,8 +98,9 @@ resource "azurerm_subnet_network_security_group_association" "subnet_nsg" {
   
 }
 resource "azurerm_windows_virtual_machine" "webvm" {
+  for_each = var.app_environment.production.subnets["websubnet01"].machines
   #count = var.network_interface_count
-  name                = var.app_environment.production.virtualmachinename
+  name                = each.key
   resource_group_name = azurerm_resource_group.appgrp.name
   location            = local.resource_location
   size                = "Standard_B2s"
@@ -83,7 +110,7 @@ resource "azurerm_windows_virtual_machine" "webvm" {
   vm_agent_platform_updates_enabled = true
   #availability_set_id = azurerm_availability_set.appset.id
   network_interface_ids = [
-    azurerm_network_interface.webinterfaces.id,
+    azurerm_network_interface.webinterfaces[each.key].id,
   ]
   os_disk {
     caching              = "ReadWrite"
@@ -97,6 +124,37 @@ resource "azurerm_windows_virtual_machine" "webvm" {
     version   = "latest"
   }
 }
+
+resource "azurerm_linux_virtual_machine" "appvm" {
+  for_each = var.app_environment.production.subnets["appsubnet01"].machines
+  name                = each.key
+  resource_group_name = azurerm_resource_group.appgrp.name
+  location            = local.resource_location
+  size                = "Standard_B1s"
+  admin_username      = "linuxadmin"
+  admin_password = var.adminpassword
+  disable_password_authentication = false
+  custom_data = data.local_file.cloudinit.content_base64
+  network_interface_ids = [
+    azurerm_network_interface.appinterfaces[each.key].id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+}
+data "local_file" "cloudinit" {
+  filename = "cloudinit"
+}
+
 
 
 

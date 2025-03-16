@@ -7,6 +7,10 @@ locals {
      {
      priority=310
      destination_port_range="80"
+},
+{
+     priority=320
+     destination_port_range="22"
 }
      ]
 }

@@ -14,10 +14,10 @@ resource "azurerm_key_vault" "appvault2640" {
   
 }
 
-data "azurerm_key_vault" "appvault2640" {
-  name         = "appvault2640"
-  resource_group_name = "security-grp"
-}
+# data "azurerm_key_vault" "appvault26400" {
+#   name         = "appvault26400"
+#   resource_group_name = "security-grp"
+# }
 
 # resource "azurerm_key_vault_secret" "vmpassword" {
 #   name         = "vmpassword"
